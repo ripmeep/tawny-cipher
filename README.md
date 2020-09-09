@@ -15,8 +15,8 @@ ____________________________________________
 The encrypt example reads a plaintext file (as the first argument) with an unencrypted message and encrypts it using a file with a 256 bit key (as the second argument).
 
 I have included two example files in the `examples/files` folder:
-    - `examples/files/plaintext.txt` is an example plaintext message which can be read. Put anything you like in there!
-    - `examples/files/key.bin` is an example key file, containing random hex characters which have been randomly generated. You can generate your own key file too.
+    * `examples/files/plaintext.txt` is an example plaintext message which can be read. Put anything you like in there!
+    * `examples/files/key.bin` is an example key file, containing random hex characters which have been randomly generated. You can generate your own key file too.
 
 To encrypt your file, use `./encrypt [PLAINTEXT FILE] [KEY FILE] [OUT FILE]`. Here's an example:
 
@@ -35,5 +35,6 @@ It then saves the decrypted text to `decrypted.txt` and is readable again.
 # This is a test version #
 
 TODO: Remove example functions?
+
 TODO: Add options for base64 encoding
 
