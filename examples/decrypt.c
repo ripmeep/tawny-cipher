@@ -5,13 +5,14 @@
 #include "tawny.h"
 
 int main(int argc, char ** argv) {
-	if (argc < 3) {
-		fprintf(stderr, "\nUsage: [CIPHERTEXT FILE] [KEY FILE]\n\n");
+	if (argc < 4) {
+		fprintf(stderr, "\nUsage: [CIPHERTEXT FILE] [KEY FILE] [OUT FILE]\n\n");
 		return -1;
 	}
 
 	char * ciphertext_filename = argv[1];
 	char * key_filename = argv[2];
+	char * out_filename = argv[3];
 
 	FILE * ciphertext_file = fopen(ciphertext_filename, "rb");
 	FILE * key_file = fopen(key_filename, "rb");
@@ -88,14 +89,10 @@ int main(int argc, char ** argv) {
 	/* PLAINTEXT IS NOW STORED IN ctx.plaintext */
 	/* LENGTH OF PLAINTEXT IS STORED IN ctx.plaintext_len */
 
-	char outfile_name[strlen(argv[1]) + 10];
-
-	snprintf(outfile_name, sizeof(outfile_name), "%s", "decrypted.txt");
-
-	FILE * outfile = fopen(outfile_name, "wb");
+	FILE * outfile = fopen(out_filename, "wb");
 
 	if (outfile == NULL) {
-		fprintf(stderr, "Failed to open file file for writing \"%s\" [fopen()]\n", (ciphertext_file == NULL)?argv[1]:argv[2]);
+		fprintf(stderr, "Failed to open file file for writing \"%s\" [fopen()]\n", (outfile == NULL)?argv[1]:argv[2]);
 		perror("Error");
 		return -1;
 	}
@@ -104,7 +101,7 @@ int main(int argc, char ** argv) {
 
 	fwrite(ctx.plaintext, ctx.plaintext_len, 1, outfile);
 
-	printf("Success!\nDecrypted data now stored in \"%s\"\n", outfile_name);
+	printf("Success!\nDecrypted data now stored in \"%s\"\n", out_filename);
 	printf("Data: %s\n", ctx.plaintext);
 
 	return 0;
