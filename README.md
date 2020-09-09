@@ -39,3 +39,5 @@ TODO: Remove example functions?
 
 TODO: Add options for base64 encoding
 
+TODO: Provide alternative for manual pkcs#7 padding (pkcs7pad())
+
