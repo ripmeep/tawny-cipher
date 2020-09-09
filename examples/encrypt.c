@@ -78,7 +78,7 @@ int main(int argc, char ** argv) {
 
 	size_t bytes_written = 0;
 
-	/* Tawny_Encrypted RETURNS THE AMOUNT OF COPIED BYTES ON SUCCESS AND 0 ON FAILURE */
+	/* Tawny_Encrypt() RETURNS THE AMOUNT OF COPIED BYTES ON SUCCESS AND 0 ON FAILURE */
 
 	bytes_written = Tawny_Encrypt(&ctx);
 
