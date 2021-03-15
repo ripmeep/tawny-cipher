@@ -1,6 +1,3 @@
-#include <openssl/rand.h>
-#include <openssl/sha.h>
-
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
@@ -72,47 +69,71 @@ typedef struct __TAWNY_CTX {
       	size_t ciphertext_len;
 } Tawny_CTX;
 
-struct sha256 {
-      	char * plaintext;
-      	unsigned char sum[SHA256_DIGEST_LENGTH];
-      	size_t plaintext_len;
-      	size_t sum_size;
-};
 
-void init_sha256(struct sha256 * hash) {
-      	memset(hash->sum, '\0', SHA256_DIGEST_LENGTH);
+void Tawny_Hexdump(const char * s, size_t len, size_t row_len, int show_chars, int colors) {
+    int b = 0;
+    int xc_offset = 0;
+    int cw = 0;
+    int is_printable = 0;
 
-      	hash->sum_size = 0;
-      	hash->plaintext_len = 0;
+    for (int i = 0; i < len; ++i) {
+        if (b%row_len == 0)
+            printf("[%04x]\t", i);
+
+        if ((isalpha(s[i]) || ispunct(s[i]) || isdigit(s[i])) && colors > 0) {
+            is_printable = 1;
+            printf("\033[01;9%dm", colors);
+        } else
+            is_printable = 0;
+
+        printf("%02X\033[0m ", s[i] & 0xFF);
+
+        b++;
+
+//      if (b == row_len/2)
+//          printf("  ");
+
+        if (b%row_len == 0 || i + 1 == len) {
+            if (show_chars) {
+                for (int p = 0; p < (3*row_len) - (3*b); ++p)
+                    printf(" ");
+
+                printf("\t| ");
+
+                if (i + 1 == len)
+                    xc_offset = ((i - row_len) + 1) + (row_len - b);
+                else
+                    xc_offset = (i - row_len) + 1;
+
+                cw = 0;
+                for (int x = xc_offset; x < i + 1; ++x) {
+                    if (isalpha(s[x]) || ispunct(s[x]) || isdigit(s[x]))
+                        if ((int)s[x] == 0x20)
+                            printf(".");
+                        else {
+                            if ((isalpha(s[x]) || ispunct(s[x]) || isdigit(s[x])) && colors > 0)
+                                printf("\033[01;9%dm", colors);
+                            printf("%c\033[0m", s[x]);
+                        }
+                    else
+                        printf(".");
+                    cw++;
+                }
+
+
+                for (int p = 0; p < (row_len - cw); ++p)
+                    printf(" ");
+
+                printf(" |");
+            }
+
+            printf("\n");
+            b = 0;
+        }
+    }
+
+    printf("\n");
 }
-
-static int sha256sum(struct sha256 * hash) {
-      	if (hash->plaintext == NULL)
-            	return 0;
-
-      	int status;
-
-      	hash->plaintext_len = strlen(hash->plaintext);
-
-      	SHA256_CTX ctx;
-      	SHA256_Init(&ctx);
-      	SHA256_Update(&ctx, hash->plaintext, hash->plaintext_len);
-      	status = SHA256_Final(hash->sum, &ctx);
-
-      	if (status)
-            	hash->sum_size = SHA256_DIGEST_LENGTH;
-
-      	return status;
-}
-
-void print_bytes(unsigned char * buf, size_t size) {
-      	for (size_t i = 0; i < size; ++i) {
-            	printf("%02x ", buf[i] & 0xFF);
-      	}
-
-      	putchar('\n');
-}
-
 
 /* PCSS#7 PADDING EXTENSION FOR COMPLETING BLOCKS */
 unsigned char * pkcs7pad(unsigned char * buf, size_t buf_len, size_t block_size) {
@@ -283,20 +304,6 @@ int Tawny_Update(int mode, Tawny_CTX * ctx, unsigned char * iv, unsigned char * 
 
 
 unsigned int Tawny_Encrypt(Tawny_CTX * ctx) {
-#if TAWNY_DEBUG
-      	printf("\n===== ENCRYPTION =====\n\n");
-#endif
-
-#if TAWNY_DEBUG
-        printf("Cipher Key:\t\t");
-        print_bytes(ctx->key, sizeof(ctx->key));
-
-        printf("Initialization Vector:\t");
-        print_bytes(ctx->iv, sizeof(ctx->iv));
-
-        putchar('\n');
-#endif
-
 /* INITIALIZE MATRIX TABLE */
 
       	for (size_t r = 0; r < ctx->matrix.rows; ++r) {
@@ -346,10 +353,6 @@ unsigned int Tawny_Encrypt(Tawny_CTX * ctx) {
 
       	ctx->ciphertext = (unsigned char*)malloc(total_size);
 
-#if TAWNY_DEBUG
-      	printf("Plaintext length: \t%ld\nBlock size: \t\t%ld\nNumber of Blocks: \t%ld\nTotal Buffer Size: \t%ld\n\n", plaintext_len, block_size, nmemb, total_size);
-#endif
-
       	for (int e = 0; e < nmemb; ++e) { /* REPEAT ROUNDS FOR N BLOCKS OF PADDED PLAINTEXT */
 
 /* COPY "PLAINTEXT" INTO OTHER SECTION OF MEMORY FOR FUNC */
@@ -357,38 +360,11 @@ unsigned int Tawny_Encrypt(Tawny_CTX * ctx) {
             	memset(c_plaintext_block, '\0', sizeof(c_plaintext_block));
             	memcpy(c_plaintext_block, ctx->plaintext + (block_size * e), sizeof(c_plaintext_block));
 
-#if TAWNY_DEBUG
-            	printf("\n\n\t\tBlock %d ~\n\n", e);
-            	printf("\nCurrent Block:  \t");
-
-            	for (int i = 0; i < sizeof(c_plaintext_block); ++i)
-                  	putchar(c_plaintext_block[i]);
-            	putchar('\n');
-
-            	printf("Current Keyround: \t");
-
-            	for (int i = 0; i < sizeof(c_plaintext_block); ++i)
-                  	printf("%02x  ", ctx->keyround[i] & 0xFF);
-
-            	putchar('\n');
-#endif
-
 /* XOR CURRENT KEYROUND & "PLAINTEXT" MEMORY -> "PLAINTEXT" */
 
             	if (!xor((unsigned char*)c_plaintext_block, sizeof(c_plaintext_block), ctx->keyround, TAWNY_KEY_LENGTH_BYTES, (unsigned char*)c_plaintext_block, sizeof(c_plaintext_block))) {
                   	break;
             	}
-
-#if TAWNY_DEBUG
-            	printf("XOR Block:\t\t");
-
-            	for (int i = 0; i < sizeof(c_plaintext_block); ++i)
-                  	printf("%02x  ", c_plaintext_block[i] & 0xFF);
-
-            	putchar('\n');
-            	putchar('\n');
-#endif
-
 
 /* FILL MATRIX TABLE WITH RESULT */
 
@@ -399,12 +375,6 @@ unsigned int Tawny_Encrypt(Tawny_CTX * ctx) {
                         	ctx->keyround[pos] = c_plaintext_block[pos];
                   	}
             	}
-
-#if TAWNY_DEBUG
-            	printf("Current Matrix:\n");
-            	show_matrix(&ctx->matrix);
-            	putchar('\n');
-#endif
 
 //R3
 //R4
@@ -447,12 +417,6 @@ unsigned int Tawny_Encrypt(Tawny_CTX * ctx) {
                   	ctx->matrix.table[r][4] = val;
             	}
 
-#if TAWNY_DEBUG
-            	printf("Rotated Matrix:\n");
-            	show_matrix(&ctx->matrix);
-            	putchar('\n');
-#endif
-
 /* EXPORT ROTATED MATRIX TABLE INTO "CIPHERTEXT" MEMORY */
 
             	for (size_t r = 0; r < matrix_rows; ++r) {
@@ -478,19 +442,6 @@ unsigned int Tawny_Encrypt(Tawny_CTX * ctx) {
 
 
 unsigned int Tawny_Decrypt(Tawny_CTX * ctx) {
-#if TAWNY_DEBUG
-    	printf("\n\n===== DECRYPTION =====\n\n");
-#endif
-
-#if TAWNY_DEBUG
-        printf("Cipher Key:\t\t");
-        print_bytes(ctx->key, sizeof(ctx->key));
-
-        printf("Initialization Vector:\t");
-        print_bytes(ctx->iv, sizeof(ctx->iv));
-
-        putchar('\n');
-#endif
 /* CHECK IV, KEY AND CIPHERTEXT EXIST IN STRUCT */
 
       	if (ctx->iv_len == 0 || ctx->key_len == 0 || ctx->ciphertext_len == 0)
@@ -543,25 +494,6 @@ unsigned int Tawny_Decrypt(Tawny_CTX * ctx) {
 	  	memset(c_ciphertext_block, '\0', sizeof(c_ciphertext_block));
 		memcpy(c_ciphertext_block, ctx->ciphertext + (block_size * d), sizeof(c_ciphertext_block));
 
-#if TAWNY_DEBUG
-            	printf("\n\n\t\tBlock %d ~\n\n", d);
-            	printf("\nCurrent Block:  \t\t");
-
-            	for (int i = 0; i < sizeof(c_ciphertext_block); ++i)
-			printf("%02x  ", c_ciphertext_block[i] & 0xFF);
-            	putchar('\n');
-
-            	printf("Current Ciphertext Keyround: \t");
-
-            	for (int i = 0; i < sizeof(c_ciphertext_block); ++i)
-			printf("%02x  ", ctx->keyround[i] & 0xFF);
-
-            	putchar('\n');
-            	putchar('\n');
-#endif
-
-
-
             	for (size_t r = 0; r < matrix_rows; ++r) {
                   	for (size_t c = 0; c < matrix_columns; ++c) {
                         	pos = c + (r * matrix_columns);
@@ -569,13 +501,6 @@ unsigned int Tawny_Decrypt(Tawny_CTX * ctx) {
 //                      	ctx->keyround[pos] = c_ciphertext_block[pos];
                   	}
             	}
-
-
-#if TAWNY_DEBUG
-            	printf("Current Matrix:\n");
-            	show_matrix(&ctx->matrix);
-            	putchar('\n');
-#endif
 
 //R1
 //R2
@@ -618,17 +543,6 @@ unsigned int Tawny_Decrypt(Tawny_CTX * ctx) {
                   	ctx->matrix.table[r][3] = val;
             	}
 
-
-
-
-#if TAWNY_DEBUG
-            	printf("Unrotated Matrix:\n");
-            	show_matrix(&ctx->matrix);
-            	putchar('\n');
-#endif
-
-
-
 /* EXPORT UNROTATED MATRIX TABLE INTO "CIPHERTEXT" MEMORY */
 
             	for (size_t r = 0; r < matrix_rows; ++r) {
@@ -644,12 +558,6 @@ unsigned int Tawny_Decrypt(Tawny_CTX * ctx) {
             	if (!xor((unsigned char*)c_ciphertext_block, sizeof(c_ciphertext_block), ctx->keyround, TAWNY_KEY_LENGTH_BYTES, (unsigned char*)c_ciphertext_block, sizeof(c_ciphertext_block))) {
                   	break;
             	}
-
-#if TAWNY_DEBUG
-            	printf("De-Ciphered text Block:\t\t");
-	    	print_bytes((unsigned char*)c_ciphertext_block, sizeof(c_ciphertext_block));
-            	putchar('\n');
-#endif
 
 	  	for (size_t i = 0; i < block_size; ++i) {
 			ctx->plaintext_len++;
